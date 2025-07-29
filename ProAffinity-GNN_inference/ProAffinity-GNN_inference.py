@@ -774,7 +774,7 @@ try:
 
                 bin_n = math.ceil(dis / (intra_distance / bin_number))
                 # print(bin_n)
-                if bin_n > 10:Shane Tamura
+                if bin_n > 10:
                     bin_n = 10
 
                 if type1 + "_" + type2 in atom_pair:
