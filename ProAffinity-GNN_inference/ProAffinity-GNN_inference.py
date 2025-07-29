@@ -386,6 +386,7 @@ aminoacid_abbr = {
     "CYS": "C",
     "PRO": "P",
     "HIS": "H",
+    "HSD": "H",
     "ARG": "R",
     "UNK": "X",
 }
@@ -393,6 +394,10 @@ aminoacid_abbr = {
 # %%
 
 import argparse
+import os
+import os.path as osp
+
+import yaml
 
 # pdbfile = '/data/a/zhiyuan/dataset/PP/pdbqt_H_processed/1a2k_atom_processed.pdbqt'
 # chainindex = [['A', 'B'], ['C']]
@@ -400,10 +405,18 @@ import argparse
 my_arg = argparse.ArgumentParser("My argument parser")
 my_arg.add_argument("--file", "-f", type=str, help="pdbqt file path")
 my_arg.add_argument("--chain", "-c", default="A,B", type=str, help="chain division, such as A,B")
+my_arg.add_argument(
+    "--model_path", "-m", type=str, default=None, help="path to the trained model file"
+)
+my_arg.add_argument(
+    "--output_dir", "-o", default="results", type=str, help="output directory for results"
+)
 args = my_arg.parse_args()
 
 pdbfile = args.file
 chainindex = args.chain.split(",")
+model_path = args.model_path
+output_dir = args.output_dir
 
 # %%
 # get 2 residue lists from file of one pdb
@@ -420,6 +433,7 @@ residuelistB = get_residue_list_from_file(pdbfile, prot_pair[1])
 
 adjust_residuelist_num(residuelistA)
 adjust_residuelist_num(residuelistB)
+assert len(residuelistA) > 0 and len(residuelistB) > 0, "No residue list found"
 
 # print(len(residuelistA[0]))
 # print(len(residuelistA[1]))
@@ -760,7 +774,7 @@ try:
 
                 bin_n = math.ceil(dis / (intra_distance / bin_number))
                 # print(bin_n)
-                if bin_n > 10:
+                if bin_n > 10:Shane Tamura
                     bin_n = 10
 
                 if type1 + "_" + type2 in atom_pair:
@@ -974,7 +988,8 @@ model = GraphNetwork(
     linear_out1,
     linear_out2,
 ).to(device)
-model.load_state_dict(torch.load("./model.pkl"))
+model_path = model_path if model_path is not None else osp.join(osp.dirname(__file__), "model.pkl")
+model.load_state_dict(torch.load(model_path))
 # Assuming model is your GNN model and dataloader is your test dataloader
 model.eval()  # Set the model to evaluation mode
 
@@ -1012,9 +1027,21 @@ for i in range(len(all_predictions)):
 
 # Concatenate all predictions and true values
 all_predictions = np.concatenate(all_predictions, axis=0)
+print(f"all_predictions shape: {all_predictions.shape}")
+print(f"all_predictions: {all_predictions}")
 # keep 3 decimal places
 print("pKa:", round(all_predictions[0], 3))
 
 # save to file
-with open("./result_" + pdbfile + ".txt", "w") as f:
-    f.write(pdbfile + " pKa: " + str(round(all_predictions[0], 3)))
+os.makedirs(output_dir, exist_ok=True)
+protein_name = osp.splitext(osp.basename(pdbfile))[0]
+
+with open(osp.join(output_dir, protein_name + ".txt"), "w") as f:
+    f.write(protein_name + " pKa: " + str(round(all_predictions[0], 3)))
+
+yaml.safe_dump(
+    {"protein_name": protein_name, "pdb_file": pdbfile, "chains": ",".join(chainindex), "pKa": all_predictions.item()},
+    open(osp.join(output_dir, f"{protein_name}.yaml"), "w"),
+    indent=2,
+    sort_keys=False
+)
